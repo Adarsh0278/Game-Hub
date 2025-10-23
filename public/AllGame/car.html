@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Car Racing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-3119615719078426"
+     crossorigin="anonymous"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        body {
+            font-family: 'Press Start 2P', cursive;
+            touch-action: none; /* Disable double-tap zoom on mobile */
+        }
+        .game-area {
+            background-color: #2d3436;
+            background-image: linear-gradient(315deg, #2d3436 0%, #000000 74%);
+            overflow: hidden;
+            position: relative;
+            border-left: 5px dashed #fffa65;
+            border-right: 5px dashed #fffa65;
+        }
+        .car, .enemy {
+            position: absolute;
+            width: 50px;
+            height: 90px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .line {
+            position: absolute;
+            width: 10px;
+            height: 150px;
+            background-color: white;
+        }
+        .score-board, .high-score-board {
+            position: absolute;
+            top: 20px;
+            background-color: #1e90ff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 1.2em;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 2;
+        }
+        .score-board {
+            left: 20px;
+        }
+        .high-score-board {
+            right: 20px;
+        }
+        .start-screen, .game-over-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            border-radius: 15px;
+            z-index: 3;
+            cursor: pointer;
+            border: 3px solid #fffa65;
+            box-shadow: 0 0 20px #fffa65;
+        }
+        .start-screen h1, .game-over-screen h1 {
+            font-size: 2em;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+         .start-screen p, .game-over-screen p {
+            font-size: 1em;
+            line-height: 1.5;
+        }
+        .hide {
+            display: none;
+        }
+        
+        /* Mobile Controls */
+        .mobile-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 10;
+        }
+
+        .control-btn {
+            width: 70px;
+            height: 70px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 2rem;
+            user-select: none;
+            -webkit-user-select: none; /* for Safari */
+        }
+        
+        @media (min-width: 768px) {
+            .mobile-controls {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-800 flex items-center justify-center h-screen overflow-hidden">
+
+    <div class="game-container relative">
+        <div id="gameArea" class="game-area h-screen w-full md:w-[400px] md:h-[90vh] md:rounded-lg shadow-2xl"></div>
+        <div id="score" class="score-board">Score: 0</div>
+        <div id="highScore" class="high-score-board">High: 0</div>
+        <div id="startScreen" class="start-screen">
+            <h1>Retro Racer</h1>
+            <p>Use Arrow Keys to Move</p>
+            <p class="mt-4 text-yellow-300 text-lg">Click to Start</p>
+        </div>
+        <div id="gameOverScreen" class="game-over-screen hide">
+            <h1>Game Over</h1>
+            <p id="finalScore"></p>
+            <p class="mt-4 text-yellow-300 text-lg">Click to Restart</p>
+        </div>
+    </div>
+    
+    <!-- Mobile Controls -->
+    <div class="mobile-controls">
+      <div id="btnLeft" class="control-btn">◀</div>
+      <div id="btnRight" class="control-btn">▶</div>
+    </div>
+
+
+    <script>
+        const gameArea = document.getElementById('gameArea');
+        const scoreBoard = document.getElementById('score');
+        const highScoreBoard = document.getElementById('highScore');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const finalScore = document.getElementById('finalScore');
+        const btnLeft = document.getElementById('btnLeft');
+        const btnRight = document.getElementById('btnRight');
+        
+        // Player object to hold game state
+        let player = { start: false, speed: 3, score: 0, highScore: 0 };
+        // Object to track which keys are pressed
+        let keys = { ArrowLeft: false, ArrowRight: false, ArrowUp: false, ArrowDown: false };
+        
+        // Event listeners for keyboard controls
+        document.addEventListener('keydown', (e) => {
+            e.preventDefault();
+            if (e.key in keys) keys[e.key] = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            e.preventDefault();
+            if (e.key in keys) keys[e.key] = false;
+        });
+
+        // Event listeners for mobile controls
+        btnLeft.addEventListener('touchstart', () => keys.ArrowLeft = true);
+        btnLeft.addEventListener('touchend', () => keys.ArrowLeft = false);
+        btnRight.addEventListener('touchstart', () => keys.ArrowRight = true);
+        btnRight.addEventListener('touchend', () => keys.ArrowRight = false);
+
+        // Event listener to start/restart the game
+        startScreen.addEventListener('click', startGame);
+        gameOverScreen.addEventListener('click', startGame);
+        
+        function isCollision(a, b) {
+            const aRect = a.getBoundingClientRect();
+            const bRect = b.getBoundingClientRect();
+
+            return !(
+                (aRect.bottom < bRect.top) ||
+                (aRect.top > bRect.bottom) ||
+                (aRect.right < bRect.left) ||
+                (aRect.left > bRect.right)
+            );
+        }
+        
+        function moveLines() {
+            let lines = document.querySelectorAll('.line');
+            lines.forEach(item => {
+                if(item.y >= gameArea.offsetHeight) {
+                    item.y -= (gameArea.offsetHeight + item.offsetHeight);
+                }
+                item.y += player.speed;
+                item.style.top = item.y + 'px';
+            });
+        }
+        
+        function moveEnemies(car) {
+             let enemies = document.querySelectorAll('.enemy');
+             enemies.forEach(item => {
+                if (isCollision(car, item)) {
+                    endGame();
+                }
+
+                if(item.y >= gameArea.offsetHeight) {
+                    item.y = -300; // Reset position above the screen
+                    item.style.left = Math.floor(Math.random() * (gameArea.offsetWidth - 50)) + 'px';
+                }
+                item.y += player.speed;
+                item.style.top = item.y + 'px';
+            });
+        }
+        
+        function gameLoop() {
+            const car = document.querySelector('.car');
+            const road = gameArea.getBoundingClientRect();
+
+            if (player.start) {
+                moveLines();
+                moveEnemies(car);
+
+                // Player car movement logic
+                if (keys.ArrowUp && player.y > road.top) { player.y -= player.speed; }
+                if (keys.ArrowDown && player.y < (road.bottom - car.offsetHeight)) { player.y += player.speed; }
+                if (keys.ArrowLeft && player.x > 0) { player.x -= player.speed; }
+                if (keys.ArrowRight && player.x < (road.width - car.offsetWidth)) { player.x += player.speed; }
+                
+                car.style.top = player.y + 'px';
+                car.style.left = player.x + 'px';
+
+                // Update score
+                player.score++;
+                if (player.score > player.highScore) {
+                    player.highScore = player.score;
+                }
+                scoreBoard.innerText = "Score: " + player.score;
+                highScoreBoard.innerText = "High: " + player.highScore;
+                
+                // Request the next frame
+                window.requestAnimationFrame(gameLoop);
+            }
+        }
+        
+        function createCarSVG(color) {
+            return `<svg width="50" height="90" viewBox="0 0 100 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 10 C10 20, 10 60, 20 170 L80 170 C90 60, 90 20, 80 10 Z" fill="${color}" stroke="black" stroke-width="5"/>
+                <rect x="15" y="40" width="70" height="80" rx="15" fill="rgba(0,0,0,0.3)"/>
+                <rect x="25" y="50" width="50" height="60" rx="10" fill="rgba(0,0,0,0.2)"/>
+                <rect x="5" y="20" width="10" height="30" rx="5" fill="yellow"/>
+                <rect x="85" y="20" width="10" height="30" rx="5" fill="yellow"/>
+            </svg>`;
+        }
+        
+        function startGame() {
+            startScreen.classList.add('hide');
+            gameOverScreen.classList.add('hide');
+            gameArea.innerHTML = "";
+
+            player.start = true;
+            player.score = 0;
+            // Load high score from local storage
+            player.highScore = localStorage.getItem('retroRacerHighScore') || 0;
+
+            // Create road lines
+            for(let i=0; i<5; i++){
+                let roadLine = document.createElement('div');
+                roadLine.setAttribute('class', 'line');
+                roadLine.y = i * 200;
+                roadLine.style.top = roadLine.y + 'px';
+                roadLine.style.left = (gameArea.offsetWidth / 2 - 5) + 'px';
+                gameArea.appendChild(roadLine);
+            }
+
+            // Create player's car
+            let car = document.createElement('div');
+            car.setAttribute('class', 'car');
+            car.innerHTML = createCarSVG('#1e90ff');
+            gameArea.appendChild(car);
+            
+            player.x = car.offsetLeft;
+            player.y = car.offsetTop;
+
+            // Center the car initially
+            const road = gameArea.getBoundingClientRect();
+            player.x = (road.width / 2) - (car.offsetWidth / 2);
+            player.y = road.height - (car.offsetHeight + 20);
+
+            // Create enemy cars
+            const enemyColors = ['#ff4757', '#2ed573', '#ffa502', '#5352ed'];
+            for(let i=0; i<4; i++){
+                let enemy = document.createElement('div');
+                enemy.setAttribute('class', 'enemy');
+                enemy.innerHTML = createCarSVG(enemyColors[i]);
+                enemy.y = ((i+1) * 250) * -1; // Position them off-screen initially
+                enemy.style.top = enemy.y + 'px';
+                enemy.style.left = Math.floor(Math.random() * (gameArea.offsetWidth - 50)) + 'px';
+                gameArea.appendChild(enemy);
+            }
+
+            window.requestAnimationFrame(gameLoop);
+        }
+
+        function endGame() {
+            player.start = false;
+            // Save high score to local storage
+            localStorage.setItem('retroRacerHighScore', player.highScore);
+            finalScore.innerText = `Your Score: ${player.score}`;
+            gameOverScreen.classList.remove('hide');
+        }
+
+        // Initialize high score display
+        highScoreBoard.innerText = "High: " + (localStorage.getItem('retroRacerHighScore') || 0);
+
+    </script>
+</body>
+</html>
+
